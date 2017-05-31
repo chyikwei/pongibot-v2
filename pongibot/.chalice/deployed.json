@@ -1,0 +1,11 @@
+{
+  "dev": {
+    "rest_api_id": "apn18polej",
+    "chalice_version": "0.9.0",
+    "region": "us-east-1",
+    "backend": "api",
+    "api_handler_name": "pongibot-dev",
+    "api_handler_arn": "arn:aws:lambda:us-east-1:637827702214:function:pongibot-dev",
+    "api_gateway_stage": "dev"
+  }
+}

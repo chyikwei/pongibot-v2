@@ -1,0 +1,13 @@
+{
+  "stages": {
+    "dev": {
+      "api_gateway_stage": "dev"
+    }
+  }, 
+  "version": "2.0", 
+  "app_name": "pongibot",
+  "environment_variables": {
+    "VERIFY_TOKEN": "",
+    "PAGE_ACCESS_TOKEN": ""
+  }
+}
