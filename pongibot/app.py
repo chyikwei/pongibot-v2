@@ -2,15 +2,14 @@ from __future__ import print_function
 
 import os
 import json
-import requests
 
 from chalice import Chalice, Response
+from chalicelib import FacebookMsgSender, UserTable, MsgTable
+
 
 app = Chalice(app_name='pongibot')
 
 app.debug = True
-
-FB_POST_URL = "https://graph.facebook.com/v2.8/me/messages"
 
 
 @app.route('/')
@@ -55,40 +54,26 @@ def webhook_post(request):
     if not body:
         return {"success": False}
 
-    ret = True
     if body['object'] == 'page':
         for entry in body['entry']:
             for msg in entry.get('messaging', []):
                 if 'delivery' in msg:
                     continue
-                msg_txt = msg['message']['text']
-                sender_id = msg['sender']['id']
-                res_text = msg_txt
-                send_message(sender_id, res_text)
-    return {"success": ret}
+                try:
+                    msg_txt = msg['message']['text']
+                    sender_id = msg['sender']['id']
+                    ut = UserTable()
+                    ut.get_or_create(sender_id)
+                    msgt = MsgTable()
+                    msg_data = {
+                        'mid': msg['message']['mid'],
+                        'raw': json.dumps(msg['message'])
+                    }
+                    msgt.put(sender_id, msg_data)
+                    res_text = msg_txt
 
-
-def send_message(recipient_id, message_text):
-
-    params = {
-        "access_token": os.environ["PAGE_ACCESS_TOKEN"]
-    }
-    headers = {
-        "Content-Type": "application/json"
-    }
-    data = json.dumps({
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message_text
-        }
-    })
-
-    r = requests.post(FB_POST_URL,
-                      params=params,
-                      headers=headers,
-                      data=data)
-    
-    if r.status_code != 200:
-        print('post Failed: {}'.format(r.text))
+                    sender = FacebookMsgSender()
+                    sender.send_text(sender_id, res_text)
+                except Exception as e:
+                    print(e)
+    return {"success": True}
