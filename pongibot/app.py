@@ -4,7 +4,8 @@ import os
 import json
 
 from chalice import Chalice, Response
-from chalicelib import FacebookMsgSender, UserTable, MsgTable
+from chalicelib import (FacebookMsgSender, FacebookMsgParser,
+                        UserTable, MsgTable)
 
 
 app = Chalice(app_name='pongibot')
@@ -57,23 +58,28 @@ def webhook_post(request):
     if body['object'] == 'page':
         for entry in body['entry']:
             for msg in entry.get('messaging', []):
-                if 'delivery' in msg:
-                    continue
-                try:
-                    msg_txt = msg['message']['text']
-                    sender_id = msg['sender']['id']
-                    ut = UserTable()
-                    ut.get_or_create(sender_id)
-                    msgt = MsgTable()
-                    msg_data = {
-                        'mid': msg['message']['mid'],
-                        'raw': json.dumps(msg['message'])
-                    }
-                    msgt.put(sender_id, msg_data)
-                    res_text = msg_txt
+                msg_type = FacebookMsgParser.parse_message_type(msg)
 
-                    sender = FacebookMsgSender()
-                    sender.send_text(sender_id, res_text)
-                except Exception as e:
-                    print(e)
+                if msg_type == 'message':
+                    try:
+                        msg_txt = msg['message']['text']
+                        sender_id = msg['sender']['id']
+                        ut = UserTable()
+                        ut.get_or_create(sender_id)
+                        msgt = MsgTable()
+                        msg_data = {
+                            'mid': msg['message']['mid'],
+                            'raw': json.dumps(msg['message'])
+                        }
+                        msgt.put(sender_id, msg_data)
+                        res_text = msg_txt
+
+                        sender = FacebookMsgSender()
+                        sender.send_text(sender_id, res_text)
+                    except Exception as e:
+                        print(e)
+                elif msg_type == 'message_deliveries':
+                    continue
+                else:
+                    print("cannot handle webhook: {}".format(msg_type))
     return {"success": True}
