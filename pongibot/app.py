@@ -4,7 +4,7 @@ import os
 import json
 
 from chalice import Chalice, Response
-from chalicelib import FacebookMsgParser, MsgTable
+from chalicelib import FacebookMsgParser, MsgTable, AsyncReplyTrigger
 
 
 app = Chalice(app_name='pongibot')
@@ -55,6 +55,7 @@ def webhook_post(request):
         return {"success": False}
 
     msgt = MsgTable()
+    reply_trigger = AsyncReplyTrigger()
     if body['object'] == 'page':
         for entry in body['entry']:
             for msg in entry.get('messaging', []):
@@ -68,6 +69,7 @@ def webhook_post(request):
                             'raw': json.dumps(msg['message'])
                         }
                         msgt.put(sender_id, msg_data)
+                        reply_trigger.invoke(msg)
                     except Exception as e:
                         print(e)
                 elif msg_type == 'message_deliveries':

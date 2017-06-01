@@ -10,6 +10,7 @@
   "iam_role_arn": "",
   "environment_variables": {
     "VERIFY_TOKEN": "",
+    "REPLY_LAMBDA_NAME": "pongibot_async_process",
     "USER_TABLE": "PGB-USERS",
     "MSG_TABLE": "PGB-MSGS",
     "REPLY_TABLE": "PGB-REPLY-MSGS"

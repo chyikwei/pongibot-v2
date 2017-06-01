@@ -1,0 +1,20 @@
+{
+  "sender":{
+    "id":"USER_ID"
+  },
+  "recipient":{
+    "id":"PAGE_ID"
+  },
+  "timestamp":1458692752478,
+  "message":{
+    "mid":"mid.1458696618141:b4ef9d19ec21086067",
+    "attachments":[
+      {
+        "type":"image",
+        "payload":{
+          "url":"IMAGE_URL"
+        }
+      }
+    ]
+  }
+}
