@@ -189,5 +189,5 @@ class ReplyTable(TimestampBasedDDBTable):
         self.table_name = os.environ["REPLY_TABLE"]
         self.table = self.dynamodb.Table(self.table_name)
 
-    def put(self, user_id, msg):
-        return self._put_item_with_timestamp(user_id, msg)
+    def put(self, user_id, attributes):
+        return self._put_item_with_timestamp(user_id, attributes)

@@ -7,7 +7,7 @@ from urlparse import urlparse
 from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
 from ddb_models import User, MsgTable
-
+from reply_generator import ReplyGenerator
 
 def get_msg_type(msg):
     if 'quick_reply' in msg:
@@ -29,7 +29,7 @@ def handler(event, context):
 
     # user records
     user = User(sender_id).get_or_create()
-
+    reply_gen = ReplyGenerator(user)
     # msg record
     msg_table = MsgTable()
 
@@ -46,10 +46,14 @@ def handler(event, context):
 
     if msg_type == 'quick_reply':
         payload = message['quick_reply']['payload']
-        reply_text = "Get payload {}".format(payload)
+        reply_msg = "Get payload {}".format(payload)
+        update_data = {}
 
     elif msg_type == 'text':
-        reply_text = message['text']
+        action_data = {
+            'text': message['text']
+        }
+        reply_msg, update_data = reply_gen.next_step("type_text", action_data)
 
     elif msg_type == 'attachments':
         fs = FileSaver()
@@ -62,11 +66,20 @@ def handler(event, context):
                 s3_key = fs.save_s3(url, file_path)
                 attachments.append(s3_key)
                 saved += 1
-        reply_text = "{} file saved.".format(saved)
+        info_text = "{} file saved.".format(saved)
         if saved != len(message['attachments']):
-            reply_text += " (Only support image & video now)"
+            info_text += " (Only support image & video now)"
+        sender.send_text(sender_id, info_text)
+
+        action_data = {
+            'images': attachments
+        }
+        reply_msg, update_data = reply_gen.next_step("upload_img", action_data)
     else:
-        reply_text = "Unknown message type"
+        reply_msg, update_data = reply_gen.next_step(None, {})
+
+    # update user data
+    user_update_data.update(update_data)
 
     # update user attributes
     user.update_attributes(user_update_data)
@@ -74,4 +87,5 @@ def handler(event, context):
     msg_table.mark_processed(mid, saved_attachments=attachments)
 
     # send reply message
-    sender.send_text(sender_id, reply_text)
+    sender.send_action(sender_id, "typing_off")
+    sender.send_text(sender_id, reply_msg)
