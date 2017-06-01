@@ -10,10 +10,8 @@
   "iam_role_arn": "",
   "environment_variables": {
     "VERIFY_TOKEN": "",
-    "PAGE_ACCESS_TOKEN": "",
     "USER_TABLE": "PGB-USERS",
     "MSG_TABLE": "PGB-MSGS",
-    "REPLY_TABLE": "PGB-REPLY-MSGS",
-    "S3_BUCKET": "pongibot"
+    "REPLY_TABLE": "PGB-REPLY-MSGS"
   }
 }
