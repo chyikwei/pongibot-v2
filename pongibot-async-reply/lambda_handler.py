@@ -6,7 +6,7 @@ from urlparse import urlparse
 
 from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
-from ddb_models import User, MsgTable
+from ddb_models import User, MsgTable, ReportTable
 from reply_generator import ReplyGenerator
 
 def get_msg_type(msg):
@@ -78,11 +78,22 @@ def handler(event, context):
     else:
         reply_msg, update_data = reply_gen.next_step(None, {})
 
-    # update user data
-    user_update_data.update(update_data)
 
-    # update user attributes
-    user.update_attributes(user_update_data)
+    if update_data.get('user_state') == 'done':
+        # generate report
+        rpt = ReportTable()
+        attrs = {
+            'image': user.current_data['images'][0],
+            'tag': user.current_data['tags'][0],
+        }
+        rpt.put(sender_id, attrs)
+        user.remove_attributes(['images', 'tags'])
+    else:
+        # update user data
+        user_update_data.update(update_data)
+        # update user attributes
+        user.update_attributes(user_update_data)
+
     # update msg attributes
     msg_table.mark_processed(mid, saved_attachments=attachments)
 

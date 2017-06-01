@@ -112,6 +112,27 @@ class User(BaseDDBTable):
         )
         return resp['ResponseMetadata']['HTTPStatusCode'] == 200
 
+    def remove_attributes(self, attrs):
+        """remove DDB attributes
+
+        return: boolean (success or not)
+        """
+        new_attrs = {}
+        for k in attrs:
+            new_attrs[k] = {
+                'Action': "DELETE",
+            }
+        new_attrs['last_modified'] = {
+            'Value': datetime.now().isoformat(),
+            'Action': 'PUT'
+        }
+        resp = self.table.update_item(
+            Key={
+                self.primary_key: self.user_id
+            },
+            AttributeUpdates=new_attrs
+        )
+        return resp['ResponseMetadata']['HTTPStatusCode'] == 200
 
 
 class MsgTable(TimestampBasedDDBTable):
@@ -187,6 +208,20 @@ class ReplyTable(TimestampBasedDDBTable):
         self.primary_key = 'user_id'
         self.range_key = 'timestamp'
         self.table_name = os.environ["REPLY_TABLE"]
+        self.table = self.dynamodb.Table(self.table_name)
+
+    def put(self, user_id, attributes):
+        return self._put_item_with_timestamp(user_id, attributes)
+
+
+class ReportTable(TimestampBasedDDBTable):
+    """Report table
+    """
+    def __init__(self):
+        super(ReportTable, self).__init__()
+        self.primary_key = 'user_id'
+        self.range_key = 'timestamp'
+        self.table_name = os.environ["REPORT_TABLE"]
         self.table = self.dynamodb.Table(self.table_name)
 
     def put(self, user_id, attributes):
