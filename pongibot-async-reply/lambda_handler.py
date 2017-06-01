@@ -6,7 +6,7 @@ from urlparse import urlparse
 
 from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
-#from ddb_model import UserTable
+from ddb_models import User, MsgTable
 
 
 def get_msg_type(msg):
@@ -25,7 +25,22 @@ def get_url_file_name(url):
 def handler(event, context):
     sender_id = event['sender']['id']
     message = event['message']
-    #mid = message['mid']
+    mid = message['mid']
+
+    # user records
+    user = User(sender_id).get_or_create()
+
+    # msg record
+    msg_table = MsgTable()
+
+    # msg sender
+    sender = FacebookMsgSender()
+    sender.send_action(sender_id, "mark_seen")
+    sender.send_action(sender_id, "typing_on")
+
+    # update data
+    user_update_data = {'last_mid': mid}
+    attachments = []
 
     msg_type = get_msg_type(message)
 
@@ -44,7 +59,8 @@ def handler(event, context):
                 url = att['payload']['url']
                 file_name = get_url_file_name(att['payload']['url'])
                 file_path = os.path.join(sender_id, file_name)
-                fs.save_s3(url, file_path)
+                s3_key = fs.save_s3(url, file_path)
+                attachments.append(s3_key)
                 saved += 1
         reply_text = "{} file saved.".format(saved)
         if saved != len(message['attachments']):
@@ -52,4 +68,10 @@ def handler(event, context):
     else:
         reply_text = "Unknown message type"
 
-    FacebookMsgSender().send_text(sender_id, reply_text)
+    # update user attributes
+    user.update_attributes(user_update_data)
+    # update msg attributes
+    msg_table.mark_processed(mid, saved_attachments=attachments)
+
+    # send reply message
+    sender.send_text(sender_id, reply_text)

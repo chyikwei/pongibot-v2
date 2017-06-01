@@ -10,6 +10,12 @@ class FacebookMsgSender(object):
 
     FB_POST_URL = "https://graph.facebook.com/v2.8/me/messages"
 
+    VALID_SENDER_ACTIONS = [
+        "mark_seen",
+        "typing_on",
+        "typing_off"
+    ]
+
     def __init__(self):
         self.token = os.environ["PAGE_ACCESS_TOKEN"]
 
@@ -42,3 +48,16 @@ class FacebookMsgSender(object):
         if not is_success:
             print(r.content)
         return is_success
+
+    def send_action(self, recipient_id, action):
+        if action not in self.VALID_SENDER_ACTIONS:
+            raise ValueError("Invalid action: ", action)
+
+        data = json.dumps({
+            "recipient": {
+                "id": recipient_id
+            },
+            "sender_action": action
+        })
+        ret = self._post_requests(data)
+        return ret
