@@ -50,31 +50,6 @@ class TimestampBasedDDBTable(BaseDDBTable):
         return ret != None
 
 
-class UserTable(BaseDDBTable):
-    """Reply Msg Models
-
-    primary key: user_id
-    """
-    def __init__(self):
-        super(UserTable, self).__init__()
-        self.primary_key = 'user_id'
-        self.table_name = os.environ["USER_TABLE"]
-        self.table = self.dynamodb.Table(self.table_name)
-
-    def get(self, user_id):
-        return self._get_item(user_id, consistent=True)
-
-    def get_or_create(self, user_id):
-        ret = self.get(user_id)      
-        if not ret:
-            item = {
-                'user_id': user_id,
-                'created_on': datetime.now().isoformat()
-            }
-            ret = self._put_item(item)
-        return ret
-
-
 class MsgTable(TimestampBasedDDBTable):
     """Msg Models
 
@@ -86,23 +61,6 @@ class MsgTable(TimestampBasedDDBTable):
         self.primary_key = 'user_id'
         self.range_key = 'timestamp'
         self.table_name = os.environ["MSG_TABLE"]
-        self.table = self.dynamodb.Table(self.table_name)
-
-    def put(self, user_id, msg):
-        return self._put_item_with_timestamp(user_id, msg)
-
-
-class ReplyTable(TimestampBasedDDBTable):
-    """Reply Msg Models
-
-    primary key: user_id
-    range key: timestamp
-    """
-    def __init__(self):
-        super(ReplyTable, self).__init__()
-        self.primary_key = 'user_id'
-        self.range_key = 'timestamp'
-        self.table_name = os.environ["REPLY_TABLE"]
         self.table = self.dynamodb.Table(self.table_name)
 
     def put(self, user_id, msg):

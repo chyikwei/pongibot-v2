@@ -7,12 +7,10 @@
   "version": "2.0", 
   "app_name": "pongibot",
   "manage_iam_role": false,
-  "iam_role_arn": "",
+  "iam_role_arn": "arn:aws:iam::637827702214:role/pongibot-dev",
   "environment_variables": {
-    "VERIFY_TOKEN": "",
+    "VERIFY_TOKEN": "test_1234",
     "REPLY_LAMBDA_NAME": "pongibot_async_process",
-    "USER_TABLE": "PGB-USERS",
-    "MSG_TABLE": "PGB-MSGS",
-    "REPLY_TABLE": "PGB-REPLY-MSGS"
+    "MSG_TABLE": "PGB-MSGS"
   }
 }

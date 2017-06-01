@@ -66,7 +66,7 @@ def webhook_post(request):
                         sender_id = msg['sender']['id']
                         msg_data = {
                             'mid': msg['message']['mid'],
-                            'raw': json.dumps(msg['message'])
+                            'raw': json.dumps(msg)
                         }
                         msgt.put(sender_id, msg_data)
                         reply_trigger.invoke(msg)
