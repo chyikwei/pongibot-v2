@@ -7,6 +7,8 @@ class QuickReplyGenerator(object):
     TARGET_PREFIX = "QR_TARGET__"
     CANCEL_PAYLOAD = "QR_CANCEL"
     SKIP_PAYLOAD = "QR_SKIP"
+    INSERT_NEW_PAYLOAD = "QR_INSERT_NEW"
+    RECENT_REPORT_PAYLOAD = "QR_RECENT_REPORT"
 
     def __init__(self, preference):
         self.preference = preference
@@ -75,23 +77,77 @@ class QuickReplyGenerator(object):
         }
         return ret
 
+    def generate_initial_menu(self):
+        quick_replies = [
+            {
+                "content_type":"text",
+                "title": "Recent Reports",
+                "payload": self.RECENT_REPORT_PAYLOAD,
+            },
+            {
+                "content_type":"text",
+                "title": "Add report",
+                "payload": self.INSERT_NEW_PAYLOAD,
+            }
+        ]
+        return quick_replies
+
 
 class QuickReplyParser(object):
 
     TAG_PREFIX = "QR_TAG__"
     TARGET_PREFIX = "QR_TARGET__"
-    CANCEL_PAYLOAD = "QR_CANCEL"
-    SKIP_PAYLOAD = "QR_SKIP"
+
+    PAYLOAD_MAPPING = {
+        "QR_CANCEL": "CANCEL",
+        "QR_SKIP": "SKIP",
+        "QR_INSERT_NEW": "INSERT_NEW",
+        "QR_RECENT_REPORT": "RECENT_REPORT",
+    }
 
     @classmethod
     def parse_quick_reply_payload(cls, payload):
         parsed = {}
-        if payload == cls.CANCEL_PAYLOAD:
-            parsed['signal'] = "CANCEL"
-        elif payload == cls.SKIP_PAYLOAD:
-            parsed['signal'] = "SKIP"
+        if payload in cls.PAYLOAD_MAPPING:
+            parsed['signal'] = cls.PAYLOAD_MAPPING[payload]
         elif payload.startswith(cls.TAG_PREFIX):
             parsed['text'] = payload.lstrip(cls.TAG_PREFIX)
-        elif payload.startswith(cls.USER_PREFIX):
-            parsed['text'] = payload.lstrip(cls.USER_PREFIX)
+        elif payload.startswith(cls.TARGET_PREFIX):
+            parsed['text'] = payload.lstrip(cls.TARGET_PREFIX)
         return parsed
+
+
+class TemplateGenerator(object):
+
+    BASE_S3_URL = 'https://s3.amazonaws.com/pongibot/'
+
+    @classmethod
+    def generate_reports(cls, reports):
+        elements = []
+        for report in reports:
+            tags = ['#{}'.format(t) for t in report['tags']]
+            img_url = cls.BASE_S3_URL + report['images'][0]
+            target = report.get('target')
+            if target:
+                subtitle = "target: {}, time: {}".format(target, report['timestamp'])
+            else:
+                subtitle = "time: {}".format(report['timestamp'])
+
+            element = {
+                "title": " ".join(tags),
+                "image_url": img_url,
+                "subtitle": subtitle,
+                #"default_action": {
+                #    "type": "web_url",
+                #    "url": img_url,
+                #    "messenger_extensions": True,
+                #    "webview_height_ratio": "tall"
+                #},
+            }
+            elements.append(element)
+        payload = {
+            "template_type": "list",
+            "top_element_style": "compact",
+            "elements": elements
+        }
+        return payload

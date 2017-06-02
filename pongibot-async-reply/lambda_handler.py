@@ -62,7 +62,7 @@ def handler(event, context):
     report_data = user.get_report_data()
     user_preference = user.get_preference()
     state_context = InsertStateContext(
-        context_data, report_data, user_preference)
+        user, context_data, report_data, user_preference)
 
     # msg record
     msg_table = MsgTable()

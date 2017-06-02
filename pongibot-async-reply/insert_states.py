@@ -2,8 +2,8 @@ from __future__ import print_function
 
 from abc import ABCMeta, abstractmethod
 
-from reply_utils import QuickReplyGenerator
-
+from reply_utils import QuickReplyGenerator, TemplateGenerator
+from ddb_models import ReportTable
 
 class BaseState(object):
     __metaclass__ = ABCMeta
@@ -18,6 +18,48 @@ class BaseState(object):
         pass
 
 
+class InitState(BaseState):
+    """Initial state state"""
+    STATE_CODE = 'INIT'
+
+    def update_by_context(self, context):
+        context_data = context.get_context()
+        signal = context_data.pop('signal', '')
+
+        if signal == "INSERT_NEW":
+            context.set_state(InitInsertState())
+        elif signal == "RECENT_REPORT":
+            context.set_state(RecentReportState())
+
+    def generate_reply(self, context):
+        preference = context.get_preference()
+        qr = QuickReplyGenerator(preference)
+
+        ret = {
+            'text': "please select action",
+            'quick_replies': qr.generate_initial_menu()
+        }
+        return ret
+
+
+class RecentReportState(BaseState):
+    """Initial state state"""
+    STATE_CODE = 'RECENT_REPORT'
+    REPLY_COUNT = 5
+
+    def update_by_context(self, context):
+        context.set_state(InitState())
+
+    def generate_reply(self, context):
+        user_id = context.user.user_id
+        rpt = ReportTable()
+        reports = rpt.load(user_id, self.REPLY_COUNT)
+        ret = {
+            'template': TemplateGenerator.generate_reports(reports),
+        }
+        return ret
+
+
 class InitInsertState(BaseState):
     """Initial Insert state"""
     STATE_CODE = 'INIT_INSERT'
@@ -25,10 +67,9 @@ class InitInsertState(BaseState):
     def update_by_context(self, context):
         context_data = context.get_context()
         report = context.get_report()
-        images = context_data.get('images', [])
+        images = context_data.pop('images', [])
         report.add_images(images)
         if len(images) > 0:
-            del context_data['images']
             context.set_state(ImgUploadedState())
 
     def generate_reply(self, context):
@@ -45,10 +86,8 @@ class ImgUploadedState(BaseState):
     def update_by_context(self, context):
         context_data = context.get_context()
         report = context.get_report()
-        text = context_data.get('text', '')
-        # TODO: add quick reply
+        text = context_data.pop('text', '')
         if len(text) > 0:
-            del context_data['text']
             report.add_tag(text)
             context.set_state(TagAddedState())
 
@@ -73,13 +112,11 @@ class TagAddedState(BaseState):
     def update_by_context(self, context):
         context_data = context.get_context()
         report = context.get_report()
-        text = context_data.get('text', '')
-        signal = context_data.get('signal', '')
+        text = context_data.pop('text', '')
+        signal = context_data.pop('signal', '')
         if signal == 'SKIP':
-            del context_data['signal']
             context.set_state(ReportUserState())
         elif len(text) > 0:
-            del context_data['text']
             report.add_tag(text)
 
     def generate_reply(self, context):
@@ -102,13 +139,11 @@ class ReportUserState(BaseState):
     def update_by_context(self, context):
         context_data = context.get_context()
         report = context.get_report()
-        text = context_data.get('text', '')
-        signal = context_data.get('signal', '')
+        text = context_data.pop('text', '')
+        signal = context_data.pop('signal', '')
         if signal == 'SKIP':
-            del context_data['signal']
             context.set_state(InsertCompleteState())
         elif len(text) > 0:
-            del context_data['text']
             report.add_target(text)
             context.set_state(InsertCompleteState())
 
@@ -154,6 +189,8 @@ class InsertCancelState(BaseState):
 class InsertStateFactory(object):
 
     STATE_CODE_MAPPING = {
+        'INIT': InitState,
+        'RECENT_REPORT': RecentReportState,
         'INIT_INSERT': InitInsertState,
         'IMG_UPLOADED': ImgUploadedState,
         'TAG_ADDED': TagAddedState,
@@ -169,14 +206,15 @@ class InsertStateFactory(object):
 
 class InsertStateContext(object):
 
-    def __init__(self, context_data, report_data, preference):
+    def __init__(self, user, context_data, report_data, preference):
+        self.user = user
         self._context_data = context_data
         if 'STATE_CODE' in context_data:
             self.state = InsertStateFactory.generate_by_code(
                 context_data['STATE_CODE'])
         else:
             # initialize
-            self.state = InitInsertState()
+            self.state = InitState()
             self._context_data['STATE_CODE'] = self.state.STATE_CODE
 
         self._report = ReportData()

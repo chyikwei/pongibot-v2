@@ -252,3 +252,15 @@ class ReportTable(TimestampBasedDDBTable):
 
     def put(self, user_id, attributes):
         return self._put_item_with_timestamp(user_id, attributes)
+
+    def load(self, user_id, limit):
+        query_data = {
+            'KeyConditionExpression': Key('user_id').eq(user_id),
+            'ScanIndexForward': False,
+            'Limit': limit,
+        }
+        resp = self.table.query(**query_data)
+        if resp['ResponseMetadata']['HTTPStatusCode'] == 200:
+            return resp['Items']
+        else:
+            return []

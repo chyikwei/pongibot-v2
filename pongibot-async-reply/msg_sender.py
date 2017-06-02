@@ -36,6 +36,21 @@ class FacebookMsgSender(object):
         ret = self._post_requests(json.dumps(data))
         return ret
 
+    def send_template(self, recipient_id, payload):
+        data = {
+            "recipient": {
+                "id": recipient_id
+            },
+            "message": {
+                "attachment": {
+                    "type": "template",
+                    "payload": payload
+                }
+            }
+        }
+        ret = self._post_requests(json.dumps(data))
+        return ret
+
     def _post_requests(self, data):
         headers = {
             "Content-Type": "application/json"
@@ -57,7 +72,12 @@ class FacebookMsgSender(object):
         if 'text' in data:
             text = data['text']
             qr = data.get('quick_replies', [])
-            self.send_text(recipient_id, text, qr)
+            return self.send_text(recipient_id, text, qr)
+        elif 'template' in data:
+            payload = data['template']
+            return self.send_template(recipient_id, payload)
+        else:
+            return None
 
     def send_action(self, recipient_id, action):
         if action not in self.VALID_SENDER_ACTIONS:
