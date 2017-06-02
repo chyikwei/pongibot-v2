@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+
 USER_STATES = [
     'init',
     'img_uploaded',
@@ -14,6 +15,7 @@ USER_ACTION = [
     #'confirm_tag',
     #'confirm_complete'
 ]
+
 
 class UserState(object):
 

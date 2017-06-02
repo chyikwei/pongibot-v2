@@ -1,13 +1,14 @@
 from __future__ import print_function
 
 import os
-
+import json
 from urlparse import urlparse
 
 from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
 from ddb_models import User, MsgTable, ReportTable
-from reply_generator import ReplyGenerator
+from insert_states import InsertStateContext
+
 
 def get_msg_type(msg):
     if 'quick_reply' in msg:
@@ -29,7 +30,10 @@ def handler(event, context):
 
     # user records
     user = User(sender_id).get_or_create()
-    reply_gen = ReplyGenerator(user)
+    context_data = user.get_state_context()
+    report_data = user.get_report_data()
+    state_context = InsertStateContext(context_data, report_data)
+
     # msg record
     msg_table = MsgTable()
 
@@ -47,13 +51,13 @@ def handler(event, context):
     if msg_type == 'quick_reply':
         payload = message['quick_reply']['payload']
         reply_msg = "Get payload {}".format(payload)
-        update_data = {}
 
     elif msg_type == 'text':
         action_data = {
             'text': message['text']
         }
-        reply_msg, update_data = reply_gen.next_step("type_text", action_data)
+        state_context.receive_context(action_data)
+        reply_msg = state_context.generate_reply()
 
     elif msg_type == 'attachments':
         fs = FileSaver()
@@ -74,24 +78,25 @@ def handler(event, context):
         action_data = {
             'images': attachments
         }
-        reply_msg, update_data = reply_gen.next_step("upload_img", action_data)
+        state_context.receive_context(action_data)
+        reply_msg = state_context.generate_reply()
     else:
-        reply_msg, update_data = reply_gen.next_step(None, {})
+        reply_msg = state_context.generate_reply()
 
-
-    if update_data.get('user_state') == 'done':
-        # generate report
+    if state_context.is_completed():
+        # store
         rpt = ReportTable()
-        attrs = {
-            'image': user.current_data['images'][0],
-            'tag': user.current_data['tags'][0],
-        }
-        rpt.put(sender_id, attrs)
-        user.remove_attributes(['images', 'tags'])
+        report_data = state_context.get_report().to_dict()
+        rpt.put(sender_id, report_data)
+        # clean up
+        user.remove_attributes(['report', 'context'])
+    elif state_context.is_cancelled():
+        # clean up
+        user.remove_attributes(['report', 'context'])        
     else:
-        # update user data
-        user_update_data.update(update_data)
-        # update user attributes
+        # store data
+        user_update_data['context'] = json.dumps(state_context.get_context())
+        user_update_data['report'] = json.dumps(state_context.get_report().to_dict())
         user.update_attributes(user_update_data)
 
     # update msg attributes

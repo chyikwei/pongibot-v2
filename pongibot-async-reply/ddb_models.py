@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import json
 import boto3
 from datetime import datetime
 from boto3.dynamodb.conditions import Key
@@ -88,6 +89,18 @@ class User(BaseDDBTable):
         else:
             self.current_data = ret
         return self
+
+    def get_state_context(self):
+        if 'context' in self.current_data:
+            return json.loads(self.current_data['context'])
+        else:
+            return {}
+
+    def get_report_data(self):
+        if 'report' in self.current_data:
+            return json.loads(self.current_data['report'])
+        else:
+            return {'user_id': self.user_id}
 
     def update_attributes(self, attrs):
         """update DDB attributes
