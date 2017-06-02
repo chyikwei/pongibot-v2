@@ -19,17 +19,21 @@ class FacebookMsgSender(object):
     def __init__(self):
         self.token = os.environ["PAGE_ACCESS_TOKEN"]
 
-    def send_text(self, recipient_id, message_text):
+    def send_text(self, recipient_id, message_text, quick_replies=None):
+        if quick_replies is None:
+            quick_replies = []
 
-        data = json.dumps({
+        data = {
             "recipient": {
                 "id": recipient_id
             },
             "message": {
                 "text": message_text
             }
-        })
-        ret = self._post_requests(data)
+        }
+        if len(quick_replies) > 0:
+            data['message']['quick_replies'] = quick_replies
+        ret = self._post_requests(json.dumps(data))
         return ret
 
     def _post_requests(self, data):
@@ -48,6 +52,12 @@ class FacebookMsgSender(object):
         if not is_success:
             print(r.content)
         return is_success
+
+    def send_reply(self, recipient_id, data):
+        if 'text' in data:
+            text = data['text']
+            qr = data.get('quick_replies', [])
+            self.send_text(recipient_id, text, qr)
 
     def send_action(self, recipient_id, action):
         if action not in self.VALID_SENDER_ACTIONS:

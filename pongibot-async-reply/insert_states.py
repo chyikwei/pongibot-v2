@@ -2,6 +2,8 @@ from __future__ import print_function
 
 from abc import ABCMeta, abstractmethod
 
+from reply_utils import QuickReplyGenerator
+
 
 class BaseState(object):
     __metaclass__ = ABCMeta
@@ -30,7 +32,10 @@ class InitInsertState(BaseState):
             context.set_state(ImgUploadedState())
 
     def generate_reply(self, context):
-        return "please upload image to start."
+        ret = {
+            'text': "please upload image to start."
+        }
+        return ret
 
 
 class ImgUploadedState(BaseState):
@@ -48,7 +53,14 @@ class ImgUploadedState(BaseState):
             context.set_state(TagAddedState())
 
     def generate_reply(self, context):
-        return "please add tag"
+        preference = context.get_preference()
+        qr = QuickReplyGenerator(preference)
+
+        ret = {
+            'text': "please add tag",
+            "quick_replies": qr.generate_quick_reply_tags()
+        }
+        return ret
 
 
 class TagAddedState(BaseState):
@@ -62,56 +74,81 @@ class TagAddedState(BaseState):
         context_data = context.get_context()
         report = context.get_report()
         text = context_data.get('text', '')
-        # TODO: switch to quick reply
-        if text.lower() == 'no':
-            del context_data['text']
+        signal = context_data.get('signal', '')
+        if signal == 'SKIP':
+            del context_data['signal']
             context.set_state(ReportUserState())
         elif len(text) > 0:
             del context_data['text']
             report.add_tag(text)
 
     def generate_reply(self, context):
-        return "Add more tag or type 'No' to skip."
+        preference = context.get_preference()
+        qr = QuickReplyGenerator(preference)
+        report = context.get_report()
+        ret = {
+            'text': "Add more tag or skip.",
+            "quick_replies": qr.generate_quick_reply_tags(
+                report.get_tags(), with_skip=True)
+        }
+        return ret
 
 
 class ReportUserState(BaseState):
     """report user state"""
+
     STATE_CODE = 'REPORT_USER'
 
     def update_by_context(self, context):
         context_data = context.get_context()
-        text = context_data.get('text', '')
         report = context.get_report()
-        # TODO: switch to quick reply
-        if len(text) > 0:
+        text = context_data.get('text', '')
+        signal = context_data.get('signal', '')
+        if signal == 'SKIP':
+            del context_data['signal']
+            context.set_state(InsertCompleteState())
+        elif len(text) > 0:
             del context_data['text']
             report.add_target(text)
             context.set_state(InsertCompleteState())
 
     def generate_reply(self, context):
-        return "Add user's name or type 'No' to skip."
+        preference = context.get_preference()
+        qr = QuickReplyGenerator(preference)
+        ret = {
+            'text': "Add target's name or skip.",
+            "quick_replies": qr.generate_quick_reply_targets(with_skip=True)
+        }
+        return ret
 
 
 class InsertCompleteState(BaseState):
     """Insert Complete state"""
+
     STATE_CODE = 'INSERT_COMPTLETE'
 
     def update_by_context(self, context):
         return
 
     def generate_reply(self, context):
-        return "Insert Completed!"
-
+        ret = {
+            'text': "Insert Completed!",
+        }
+        return ret
 
 class InsertCancelState(BaseState):
     """Cancel state"""
+
     STATE_CODE = 'INSERT_CANCELLED'
 
     def update_by_context(self, context):
         return
 
     def generate_reply(self, context):
-        return "Insert Cancelled!"
+        ret = {
+            'text': "Insert Cancelled!",
+        }
+        return ret
 
 
 class InsertStateFactory(object):
@@ -132,7 +169,7 @@ class InsertStateFactory(object):
 
 class InsertStateContext(object):
 
-    def __init__(self, context_data, report_data):
+    def __init__(self, context_data, report_data, preference):
         self._context_data = context_data
         if 'STATE_CODE' in context_data:
             self.state = InsertStateFactory.generate_by_code(
@@ -144,6 +181,7 @@ class InsertStateContext(object):
 
         self._report = ReportData()
         self._report.update(report_data)
+        self._preference = preference
 
     def is_completed(self):
         return isinstance(self.state, InsertCompleteState)
@@ -157,6 +195,9 @@ class InsertStateContext(object):
     def get_report(self):
         return self._report
 
+    def get_preference(self):
+        return self._preference
+
     def receive_context(self, update_dict):
         self._context_data.update(update_dict)
         self.state.update_by_context(self)
@@ -166,7 +207,7 @@ class InsertStateContext(object):
         self.state = state
 
     def generate_reply(self):
-        return self.state.generate_reply(self.get_context())
+        return self.state.generate_reply(self)
 
 
 class ReportData(object):
@@ -188,10 +229,14 @@ class ReportData(object):
         self._data['images'] += images
 
     def add_tag(self, tag):
-        self._data['tags'].append(tag)
+        if tag not in self._data['tags']:
+            self._data['tags'].append(tag)
 
     def to_dict(self):
         return self._data
 
     def update(self, data):
         self._data.update(data)
+
+    def get_tags(self):
+        return self._data['tags']

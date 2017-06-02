@@ -8,6 +8,7 @@ from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
 from ddb_models import User, MsgTable, ReportTable
 from insert_states import InsertStateContext
+from reply_utils import QuickReplyParser
 
 
 def get_msg_type(msg):
@@ -23,6 +24,33 @@ def get_url_file_name(url):
     return urlparse(url).path.split('/')[-1]
 
 
+def save_attachments(sender_id, message):
+    attachments = []
+    fs = FileSaver()
+    for att in message['attachments']:
+        if att['type'] in ('image', 'video'):
+            url = att['payload']['url']
+            file_name = get_url_file_name(att['payload']['url'])
+            file_path = os.path.join(sender_id, file_name)
+            s3_key = fs.save_s3(url, file_path)
+            attachments.append(s3_key)
+    return attachments
+
+
+def update_user_preference(user_preference, report_data):
+    old_tags = user_preference['tags']
+    new_tags = report_data['tags']
+    for tag in set(old_tags) & set(new_tags):
+        user_preference['tags'].remove(tag)
+    user_preference['tags'] = new_tags + user_preference['tags']
+
+    target = report_data['target']
+    if target in user_preference['targets']:
+        user_preference['targets'].remove(target)
+    user_preference['targets'].insert(0, target)
+    return user_preference
+
+
 def handler(event, context):
     sender_id = event['sender']['id']
     message = event['message']
@@ -32,7 +60,9 @@ def handler(event, context):
     user = User(sender_id).get_or_create()
     context_data = user.get_state_context()
     report_data = user.get_report_data()
-    state_context = InsertStateContext(context_data, report_data)
+    user_preference = user.get_preference()
+    state_context = InsertStateContext(
+        context_data, report_data, user_preference)
 
     # msg record
     msg_table = MsgTable()
@@ -46,48 +76,41 @@ def handler(event, context):
     user_update_data = {'last_mid': mid}
     attachments = []
 
+    # parse action data
     msg_type = get_msg_type(message)
-
     if msg_type == 'quick_reply':
-        payload = message['quick_reply']['payload']
-        reply_msg = "Get payload {}".format(payload)
+        action_data = QuickReplyParser.parse_quick_reply_payload(
+            message['quick_reply']['payload'])
 
     elif msg_type == 'text':
         action_data = {
             'text': message['text']
         }
-        state_context.receive_context(action_data)
-        reply_msg = state_context.generate_reply()
-
     elif msg_type == 'attachments':
-        fs = FileSaver()
-        saved = 0
-        for att in message['attachments']:
-            if att['type'] in ('image', 'video'):
-                url = att['payload']['url']
-                file_name = get_url_file_name(att['payload']['url'])
-                file_path = os.path.join(sender_id, file_name)
-                s3_key = fs.save_s3(url, file_path)
-                attachments.append(s3_key)
-                saved += 1
+        attachments = save_attachments(sender_id, message)
+        saved = len(attachments)
         info_text = "{} file saved.".format(saved)
         if saved != len(message['attachments']):
             info_text += " (Only support image & video now)"
         sender.send_text(sender_id, info_text)
-
         action_data = {
             'images': attachments
         }
-        state_context.receive_context(action_data)
-        reply_msg = state_context.generate_reply()
     else:
-        reply_msg = state_context.generate_reply()
+        action_data = {}
+
+    # update state
+    state_context.receive_context(action_data)
+    reply_msg = state_context.generate_reply()
 
     if state_context.is_completed():
         # store
         rpt = ReportTable()
         report_data = state_context.get_report().to_dict()
         rpt.put(sender_id, report_data)
+        # update user preference
+        new_preference = update_user_preference(user_preference, report_data)
+        user.update_preference(new_preference)
         # clean up
         user.remove_attributes(['report', 'context'])
     elif state_context.is_cancelled():
@@ -104,4 +127,4 @@ def handler(event, context):
 
     # send reply message
     sender.send_action(sender_id, "typing_off")
-    sender.send_text(sender_id, reply_msg)
+    sender.send_reply(sender_id, reply_msg)

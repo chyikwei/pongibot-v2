@@ -102,6 +102,19 @@ class User(BaseDDBTable):
         else:
             return {'user_id': self.user_id}
 
+    def get_preference(self):
+        if 'preference' in self.current_data:
+            return json.loads(self.current_data['preference'])
+        else:
+            return {'tags': [], 'targets': []}
+
+    def update_preference(self, preference):
+        attrs = {
+            'preference': json.dumps(preference)
+        }
+        return self.update_attributes(attrs)
+
+
     def update_attributes(self, attrs):
         """update DDB attributes
 
