@@ -54,10 +54,11 @@ def update_user_preference(user_preference, report_data):
         user_preference['tags'].remove(tag)
     user_preference['tags'] = new_tags + user_preference['tags']
 
-    target = report_data['target']
-    if target in user_preference['targets']:
-        user_preference['targets'].remove(target)
-    user_preference['targets'].insert(0, target)
+    target = report_data.get('target')
+    if target:
+        if target in user_preference['targets']:
+            user_preference['targets'].remove(target)
+        user_preference['targets'].insert(0, target)
     return user_preference
 
 

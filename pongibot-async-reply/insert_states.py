@@ -26,10 +26,16 @@ class InitState(BaseState):
         context_data = context.get_context()
         signal = context_data.pop('signal', '')
         start_timestamp = context_data.pop('start_timestamp', None)
+        images = context_data.pop('images', [])
+        report = context.get_report()
+
         if signal == "INSERT_NEW":
             context.set_state(InitInsertState())
         elif signal == "RECENT_REPORT":
             context.set_state(RecentReportState(start_timestamp))
+        elif len(images) > 0:
+            report.add_images(images)
+            context.set_state(ImgUploadedState())
 
     def generate_reply(self, context):
         preference = context.get_preference()
