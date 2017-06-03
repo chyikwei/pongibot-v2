@@ -153,17 +153,13 @@ class TemplateGenerator(object):
                 "type": "postback",
                 "payload": json.dumps(btn_payload)
             }
-            buttons = [button]
-        else:
-            buttons = []
+            elements[-1]["buttons"] = [button]
 
         payload = {
-            "template_type": "list",
-            "top_element_style": "compact",
+            "template_type": "generic",
+            "image_aspect_ratio": "square",
             "elements": elements
         }
-        if buttons:
-            payload["buttons"] = buttons
 
         print(payload)
         return payload
