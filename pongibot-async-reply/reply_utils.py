@@ -1,19 +1,16 @@
 from __future__ import print_function
 
+import json
 import pytz
 import dateutil.parser as dp
+
+from datetime import datetime
 
 LOCAL_TIMEZONE = "America/New_York"
 
 
 class QuickReplyGenerator(object):
     """Quick Reply Generator"""
-    TAG_PREFIX = "QR_TAG__"
-    TARGET_PREFIX = "QR_TARGET__"
-    CANCEL_PAYLOAD = "QR_CANCEL"
-    SKIP_PAYLOAD = "QR_SKIP"
-    INSERT_NEW_PAYLOAD = "QR_INSERT_NEW"
-    RECENT_REPORT_PAYLOAD = "QR_RECENT_REPORT"
 
     def __init__(self, preference):
         self.preference = preference
@@ -32,7 +29,7 @@ class QuickReplyGenerator(object):
             quick_replies.append({
                 "content_type":"text",
                 "title": tag,
-                "payload": self.TAG_PREFIX + tag
+                "payload": json.dumps({"text": tag})
             })
             if len(quick_replies) >= size:
                 break
@@ -53,10 +50,11 @@ class QuickReplyGenerator(object):
         for tag in target_tags:
             if tag.lower() in excludes:
                 continue
+
             quick_replies.append({
                 "content_type":"text",
                 "title": tag,
-                "payload": self.TARGET_PREFIX + tag
+                "payload": json.dumps({"text": tag})
             })
             if len(quick_replies) >= size:
                 break
@@ -70,7 +68,7 @@ class QuickReplyGenerator(object):
         ret = {
             "content_type":"text",
             "title": "cancel",
-            "payload": self.CANCEL_PAYLOAD
+            "payload": json.dumps({"signal": "CANCEL"})
         }
         return ret
 
@@ -78,7 +76,7 @@ class QuickReplyGenerator(object):
         ret = {
             "content_type":"text",
             "title": "skip",
-            "payload": self.SKIP_PAYLOAD
+            "payload": json.dumps({"signal": "SKIP"})
         }
         return ret
 
@@ -87,39 +85,22 @@ class QuickReplyGenerator(object):
             {
                 "content_type":"text",
                 "title": "Recent Reports",
-                "payload": self.RECENT_REPORT_PAYLOAD,
+                "payload": json.dumps({"signal": "RECENT_REPORT"})
             },
             {
                 "content_type":"text",
                 "title": "Add report",
-                "payload": self.INSERT_NEW_PAYLOAD,
+                "payload": json.dumps({"signal": "INSERT_NEW"})
             }
         ]
         return quick_replies
 
 
-class QuickReplyParser(object):
-
-    TAG_PREFIX = "QR_TAG__"
-    TARGET_PREFIX = "QR_TARGET__"
-
-    PAYLOAD_MAPPING = {
-        "QR_CANCEL": "CANCEL",
-        "QR_SKIP": "SKIP",
-        "QR_INSERT_NEW": "INSERT_NEW",
-        "QR_RECENT_REPORT": "RECENT_REPORT",
-    }
+class PayloadParser(object):
 
     @classmethod
-    def parse_quick_reply_payload(cls, payload):
-        parsed = {}
-        if payload in cls.PAYLOAD_MAPPING:
-            parsed['signal'] = cls.PAYLOAD_MAPPING[payload]
-        elif payload.startswith(cls.TAG_PREFIX):
-            parsed['text'] = payload.lstrip(cls.TAG_PREFIX)
-        elif payload.startswith(cls.TARGET_PREFIX):
-            parsed['text'] = payload.lstrip(cls.TARGET_PREFIX)
-        return parsed
+    def parse(cls, payload):
+        return json.loads(payload)
 
 
 def convert_to_local_time(iso_time):
@@ -135,36 +116,72 @@ class TemplateGenerator(object):
     BASE_S3_URL = 'https://s3.amazonaws.com/pongibot/'
 
     @classmethod
-    def generate_reports(cls, reports):
+    def convert_report(cls, report):
+        ret = {}
+        tags= ['#{}'.format(t) for t in report['tags']]
+        ret["subtitle"] = " ".join(tags)
+        ret['image_url'] = cls.BASE_S3_URL + report['images'][0]
+        target = report.get('target')
+        local_time = convert_to_local_time(report['timestamp'])
+        if target:
+            ret['title'] = "{} ({})".format(target, local_time)
+        else:
+            ret['title'] = local_time
+        return ret
+
+    @classmethod
+    def generate_list_reports(cls, reports, limit):
         elements = []
-        for report in reports:
-            tags = ['#{}'.format(t) for t in report['tags']]
-            img_url = cls.BASE_S3_URL + report['images'][0]
-            target = report.get('target')
-            local_time = convert_to_local_time(report['timestamp'])
+        total = len(reports)
 
-            if target:
-                title = "{} ({})".format(target, local_time)
-            else:
-                title = local_time
+        if total <= limit:
+            next_timestamp = None
+        else:
+            next_timestamp = reports[limit]['timestamp']
 
-            element = {
-                "title": title,
-                "image_url": img_url,
-                "subtitle": " ".join(tags),
-                #"default_action": {
-                #    "type": "web_url",
-                #    "url": img_url,
-                #    "messenger_extensions": True,
-                #    "webview_height_ratio": "tall"
-                #},
-            }
+        for report in reports[:limit]:
+            element = cls.convert_report(report)
             elements.append(element)
+
+        if next_timestamp:
+            btn_payload = {
+                "signal": "RECENT_REPORT",
+                "start_timestamp": next_timestamp
+            }
+            button = {
+                "title": "View More",
+                "type": "postback",
+                "payload": json.dumps(btn_payload)
+            }
+            buttons = [button]
+        else:
+            buttons = []
 
         payload = {
             "template_type": "list",
             "top_element_style": "compact",
             "elements": elements
         }
-        #print(payload)
+        if buttons:
+            payload["buttons"] = buttons
+
+        print(payload)
         return payload
+
+    @classmethod
+    def generate_single_report(cls, report):
+        element = cls.convert_report(report)        
+
+        payload = {
+            "template_type": "generic",
+            "image_aspect_ratio": "square",
+            "elements": [element]
+        }
+        return payload
+
+    @classmethod
+    def generate_reports(cls, reports, limit):
+        if len(reports) < 2:
+            return cls.generate_single_report(reports[0])
+        else:
+            return cls.generate_list_reports(reports, limit)

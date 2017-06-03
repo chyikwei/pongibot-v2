@@ -61,13 +61,14 @@ def webhook_post(request):
             for msg in entry.get('messaging', []):
                 msg_type = FacebookMsgParser.parse_message_type(msg)
 
-                if msg_type == 'message':
+                if msg_type in ('message', 'postback'):
                     try:
                         sender_id = msg['sender']['id']
                         msg_data = {
-                            'mid': msg['message']['mid'],
                             'raw': json.dumps(msg)
                         }
+                        if 'message' in msg:
+                            msg_data['mid'] = msg['message']['mid']
                         msgt.put(sender_id, msg_data)
                         reply_trigger.invoke(msg)
                     except Exception as e:

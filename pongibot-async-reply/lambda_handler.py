@@ -8,16 +8,26 @@ from msg_sender import FacebookMsgSender
 from file_utils import FileSaver
 from ddb_models import User, MsgTable, ReportTable
 from insert_states import InsertStateContext
-from reply_utils import QuickReplyParser
+from reply_utils import PayloadParser
 
 
-def get_msg_type(msg):
+def get_msg_type(payload):
+    if 'postback' in payload:
+        return 'postback'
+
+    if 'message' in payload:
+        msg = payload['message']
+    else:
+        return None
+
     if 'quick_reply' in msg:
         return 'quick_reply'
     elif 'text' in msg:
         return 'text'
     elif 'attachments' in msg:
         return 'attachments'
+    else:
+        return None
 
 
 def get_url_file_name(url):
@@ -53,8 +63,6 @@ def update_user_preference(user_preference, report_data):
 
 def handler(event, context):
     sender_id = event['sender']['id']
-    message = event['message']
-    mid = message['mid']
 
     # user records
     user = User(sender_id).get_or_create()
@@ -73,20 +81,25 @@ def handler(event, context):
     sender.send_action(sender_id, "typing_on")
 
     # update data
-    user_update_data = {'last_mid': mid}
+    user_update_data = {}
     attachments = []
 
     # parse action data
-    msg_type = get_msg_type(message)
-    if msg_type == 'quick_reply':
-        action_data = QuickReplyParser.parse_quick_reply_payload(
-            message['quick_reply']['payload'])
+    msg_type = get_msg_type(event)
+    if msg_type == 'postback':
+        payload = event["postback"]["payload"]
+        action_data = PayloadParser.parse(payload)
+
+    elif msg_type == 'quick_reply':
+        payload = event['message']['quick_reply']['payload']
+        action_data = PayloadParser.parse(payload)
 
     elif msg_type == 'text':
         action_data = {
-            'text': message['text']
+            'text': event['message']['text']
         }
     elif msg_type == 'attachments':
+        message = event['message']
         attachments = save_attachments(sender_id, message)
         saved = len(attachments)
         info_text = "{} file saved.".format(saved)
@@ -123,7 +136,9 @@ def handler(event, context):
         user.update_attributes(user_update_data)
 
     # update msg attributes
-    msg_table.mark_processed(mid, saved_attachments=attachments)
+    if 'message' in event:
+        mid = event['message']['mid']
+        msg_table.mark_processed(mid, saved_attachments=attachments)
 
     # send reply message
     sender.send_action(sender_id, "typing_off")

@@ -15,8 +15,6 @@ class FacebookMsgParser(object):
             msg_type = 'postback'
         elif 'optin' in msg:
             msg_type = 'messaging_optins'
-        elif 'postback' in msg:
-            msg_type = 'postback'
         elif 'message' in msg:
             message = msg['message']
             if message.get('is_echo', False):

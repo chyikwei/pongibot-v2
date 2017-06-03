@@ -25,11 +25,11 @@ class InitState(BaseState):
     def update_by_context(self, context):
         context_data = context.get_context()
         signal = context_data.pop('signal', '')
-
+        start_timestamp = context_data.pop('start_timestamp', None)
         if signal == "INSERT_NEW":
             context.set_state(InitInsertState())
         elif signal == "RECENT_REPORT":
-            context.set_state(RecentReportState())
+            context.set_state(RecentReportState(start_timestamp))
 
     def generate_reply(self, context):
         preference = context.get_preference()
@@ -47,16 +47,36 @@ class RecentReportState(BaseState):
     STATE_CODE = 'RECENT_REPORT'
     REPLY_COUNT = 4
 
+    def __init__(self, start_timestamp=None):
+        self.start_timestamp = start_timestamp
+
     def update_by_context(self, context):
-        context.set_state(InitState())
+        context_data = context.get_context()
+        signal = context_data.pop('signal', '')
+        start_timestamp = context_data.pop('start_timestamp', None)
+        if signal == 'RECENT_REPORT':
+            self.start_timestamp = start_timestamp
+        else:
+            context.set_state(InitState())
 
     def generate_reply(self, context):
+        limit = self.REPLY_COUNT
         user_id = context.user.user_id
+
         rpt = ReportTable()
-        reports = rpt.load(user_id, self.REPLY_COUNT)
-        ret = {
-            'template': TemplateGenerator.generate_reports(reports),
-        }
+        start_time = self.start_timestamp
+        # Note: +2 is to make sure next batch has 2+
+        # elements
+        reports = rpt.load(
+            user_id, start_time, limit + 2)
+        if len(reports) > 0:
+            ret = {
+                'template': TemplateGenerator.generate_reports(reports, limit),
+            }
+        else:
+            ret = {
+                'text': "No report to display",
+            }
         return ret
 
 
