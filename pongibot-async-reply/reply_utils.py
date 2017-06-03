@@ -84,7 +84,7 @@ class QuickReplyGenerator(object):
         quick_replies = [
             {
                 "content_type":"text",
-                "title": "Recent Reports",
+                "title": "View Reports",
                 "payload": json.dumps({"signal": "RECENT_REPORT"})
             },
             {

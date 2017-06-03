@@ -51,7 +51,7 @@ class InitState(BaseState):
 class RecentReportState(BaseState):
     """Initial state state"""
     STATE_CODE = 'RECENT_REPORT'
-    REPLY_COUNT = 4
+    REPLY_COUNT = 5
 
     def __init__(self, start_timestamp=None):
         self.start_timestamp = start_timestamp
