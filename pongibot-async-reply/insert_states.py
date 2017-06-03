@@ -45,7 +45,7 @@ class InitState(BaseState):
 class RecentReportState(BaseState):
     """Initial state state"""
     STATE_CODE = 'RECENT_REPORT'
-    REPLY_COUNT = 5
+    REPLY_COUNT = 4
 
     def update_by_context(self, context):
         context.set_state(InitState())

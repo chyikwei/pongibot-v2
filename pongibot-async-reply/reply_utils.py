@@ -1,5 +1,10 @@
 from __future__ import print_function
 
+import pytz
+import dateutil.parser as dp
+
+LOCAL_TIMEZONE = "America/New_York"
+
 
 class QuickReplyGenerator(object):
     """Quick Reply Generator"""
@@ -117,6 +122,14 @@ class QuickReplyParser(object):
         return parsed
 
 
+def convert_to_local_time(iso_time):
+    timestamp = dp.parse(iso_time)
+    timestamp = timestamp.replace(tzinfo=pytz.UTC)
+    local = pytz.timezone(LOCAL_TIMEZONE)
+    timestamp = timestamp.astimezone(local)
+    return timestamp.strftime('%Y-%m-%d %H:%M')
+
+
 class TemplateGenerator(object):
 
     BASE_S3_URL = 'https://s3.amazonaws.com/pongibot/'
@@ -128,15 +141,17 @@ class TemplateGenerator(object):
             tags = ['#{}'.format(t) for t in report['tags']]
             img_url = cls.BASE_S3_URL + report['images'][0]
             target = report.get('target')
+            local_time = convert_to_local_time(report['timestamp'])
+
             if target:
-                subtitle = "target: {}, time: {}".format(target, report['timestamp'])
+                title = "{} ({})".format(target, local_time)
             else:
-                subtitle = "time: {}".format(report['timestamp'])
+                title = local_time
 
             element = {
-                "title": " ".join(tags),
+                "title": title,
                 "image_url": img_url,
-                "subtitle": subtitle,
+                "subtitle": " ".join(tags),
                 #"default_action": {
                 #    "type": "web_url",
                 #    "url": img_url,
@@ -145,9 +160,11 @@ class TemplateGenerator(object):
                 #},
             }
             elements.append(element)
+
         payload = {
             "template_type": "list",
             "top_element_style": "compact",
             "elements": elements
         }
+        #print(payload)
         return payload
